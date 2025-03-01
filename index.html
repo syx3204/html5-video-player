@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高级视频播放器</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff4757;
+            --control-height: 60px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .player-wrapper {
+            width: 100%;
+            max-width: 1200px;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            position: relative;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* 字幕容器 */
+        #customSubtitle {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: auto;
+            max-width: 80%;
+            min-width: 20%;
+            text-align: center;
+            padding: 12px 24px;
+            display: inline-block;
+            white-space: pre-wrap;
+            word-break: break-word;
+            
+            color: #fff;
+            font-size: 26px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+            line-height: 1.4;
+            
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        #customSubtitle.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-10px);
+        }
+
+        .controls-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            padding: 12px 20px;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(8px);
+        }
+
+        .player-wrapper:hover .controls-overlay {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            height: 48px;
+        }
+
+        /* 进度条样式 */
+        .progress-container {
+            position: absolute;
+            top: -12px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+        }
+
+        #progressBar {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0;
+            transition: width 0.1s linear;
+            position: relative;
+        }
+
+        #progressBar::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: -4px;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .progress-container:hover #progressBar::after {
+            opacity: 1;
+        }
+
+        /* 按钮样式 */
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .control-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.1);
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 时间显示 */
+        .time-display {
+            color: rgba(255,255,255,0.9);
+            font-family: 'Roboto Mono', monospace;
+            font-size: 14px;
+            min-width: 120px;
+            letter-spacing: 0.5px;
+        }
+
+        /* 音量滑块 */
+        #volumeSlider {
+            width: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+
+        .volume-container:hover #volumeSlider {
+            width: 80px;
+            opacity: 1;
+        }
+
+        /* 全屏图标动画 */
+        #fullscreenBtn::before {
+            content: '⛶';
+            transition: transform 0.3s ease;
+        }
+
+        .player-wrapper.fullscreen #fullscreenBtn::before {
+            content: '⛶';
+            transform: rotate(90deg);
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .controls-overlay {
+                padding: 8px 12px;
+            }
+            
+            .control-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+            
+            .time-display {
+                font-size: 12px;
+                min-width: 100px;
+            }
+            
+            #volumeSlider {
+                display: none;
+            }
+        }
+
+        /* 加载动画 */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .loading .control-btn {
+            animation: pulse 1.5s infinite;
+        }
+        </style>
+</head>
+<body>
+    <div class="player-wrapper">
+        <video id="videoElement">
+            <source src="https://m.ccw.site/creator-college/videos/c85e8859cf0f6656589dd7614f6df1a3.mp4" type="video/mp4">
+        </video>
+        <div id="customSubtitle"></div>
+        
+        <div class="controls-overlay">
+            <div class="progress-container">
+                <div id="progressBar"></div>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="playBtn">▶</button>
+                <span class="time-display">
+                    <span id="currentTime">00:00</span> / 
+                    <span id="duration">00:00</span>
+                </span>
+                <div class="volume-container" style="display: flex; align-items: center; gap: 8px;">
+                    <button class="control-btn" id="volumeBtn">🔊</button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
+                </div>
+                <button class="control-btn" id="fullscreenBtn"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素获取
+        const video = document.getElementById('videoElement');
+        const subtitleDisplay = document.getElementById('customSubtitle');
+        const playBtn = document.getElementById('playBtn');
+        const volumeBtn = document.getElementById('volumeBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const progressBar = document.getElementById('progressBar');
+        const currentTime = document.getElementById('currentTime');
+        const duration = document.getElementById('duration');
+        const progressContainer = document.querySelector('.progress-container');
+        
+        let subtitles = [];
+        
+        // 初始化播放器
+        function initPlayer() {
+            loadSubtitle();
+            setupControls();
+            setupEventListeners();
+            setupStylePresets();
+            video.addEventListener('loadedmetadata', () => {
+                duration.textContent = formatTime(video.duration);
+            });
+        }
+        
+        // 控件初始化
+        function setupControls() {
+            // 初始化音量状态
+            volumeBtn.textContent = video.volume === 0 ? '🔇' : '🔊';
+            volumeSlider.value = video.volume;
+            
+            // 初始化播放按钮状态
+            playBtn.textContent = video.paused ? '▶' : '⏸';
+            
+            // 初始化进度条
+            progressBar.style.width = '0%';
+        }
+        
+        // 添加加载状态指示
+        video.addEventListener('waiting', () => {
+            document.querySelector('.player-wrapper').classList.add('loading');
+        });
+
+        video.addEventListener('playing', () => {
+            document.querySelector('.player-wrapper').classList.remove('loading');
+        });
+
+        // 添加音量渐变动画
+        let volumeTimeout;
+        volumeSlider.addEventListener('input', (e) => {
+            clearTimeout(volumeTimeout);
+            document.querySelector('.volume-container').classList.add('active');
+            volumeTimeout = setTimeout(() => {
+                document.querySelector('.volume-container').classList.remove('active');
+            }, 2000);
+        });
+
+        // 事件监听设置
+        function setupEventListeners() {
+            // 播放控制
+            playBtn.addEventListener('click', togglePlay);
+            video.addEventListener('click', togglePlay);
+            
+            // 进度条控制
+            video.addEventListener('timeupdate', updateProgress);
+            progressContainer.addEventListener('click', seekVideo);
+            
+            // 音量控制
+            volumeSlider.addEventListener('input', handleVolumeChange);
+            
+            // 全屏控制
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            
+            // 键盘快捷键
+            document.addEventListener('keydown', handleKeyboardShortcut);
+            
+            // 移动端触摸控制
+            progressContainer.addEventListener('touchstart', handleTouchStart);
+            progressContainer.addEventListener('touchmove', handleTouchMove);
+            progressContainer.addEventListener('touchend', handleTouchEnd);
+        }
+        
+        // 播放/暂停切换
+        function togglePlay() {
+            if (video.paused) {
+                video.play();
+                playBtn.textContent = '⏸';
+            } else {
+                video.pause();
+                playBtn.textContent = '▶';
+            }
+        }
+        
+        // 更新进度条
+        function updateProgress() {
+            const progress = (video.currentTime / video.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            currentTime.textContent = formatTime(video.currentTime);
+        }
+        
+        // 进度跳转
+        function seekVideo(e) {
+            const rect = progressContainer.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            video.currentTime = pos * video.duration;
+        }
+        
+        // 音量控制
+        function handleVolumeChange(e) {
+            video.volume = e.target.value;
+            volumeBtn.textContent = video.volume === 0 ? '🔇' : '🔊';
+        }
+        
+        // 全屏切换
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.querySelector('.player-wrapper').requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        // 键盘快捷键处理
+        function handleKeyboardShortcut(e) {
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'ArrowLeft':
+                    video.currentTime = Math.max(0, video.currentTime - 5);
+                    break;
+                case 'ArrowRight':
+                    video.currentTime = Math.min(video.duration, video.currentTime + 5);
+                    break;
+                case 'KeyM':
+                    video.muted = !video.muted;
+                    break;
+            }
+        }
+        
+        // 移动端触摸控制变量
+        let isSeeking = false;
+        let touchStartX = 0;
+        
+        function handleTouchStart(e) {
+            isSeeking = true;
+            touchStartX = e.touches[0].clientX;
+            video.pause();
+        }
+        
+        function handleTouchMove(e) {
+            if (!isSeeking) return;
+            const deltaX = e.touches[0].clientX - touchStartX;
+            const seekTime = (deltaX / progressContainer.offsetWidth) * video.duration;
+            video.currentTime += seekTime;
+            touchStartX = e.touches[0].clientX;
+        }
+        
+        function handleTouchEnd() {
+            isSeeking = false;
+            video.play();
+        }
+        
+        // 字幕处理
+        async function loadSubtitle() {
+            try {
+                const response = await fetch('https://m.ccw.site/creator-college/images/714d5ab0b4ef5455906f0b4bda6c088a.vtt');
+                const text = await response.text();
+                parseVTT(text);
+            } catch (error) {
+                showSubtitleError();
+            }
+        }
+        
+        function parseVTT(vttText) {
+            subtitles = [];
+            const cueBlocks = vttText.split(/\n\s*\n/);
+            
+            cueBlocks.forEach(block => {
+                if (block.includes('-->')) {
+                    const lines = block.split('\n');
+                    const [start, end] = lines[0].split(' --> ');
+                    const text = cleanText(lines.slice(1).join('\n'));
+                    
+                    subtitles.push({
+                        start: parseTime(start),
+                        end: parseTime(end.split(' ')[0]),
+                        text: text
+                    });
+                }
+            });
+        }
+        
+        function cleanText(text) {
+            return text
+                .replace(/<X-word-ms[^>]*>/g, '')
+                .replace(/<\/X-word-ms>/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        
+        function parseTime(timeStr) {
+            const parts = timeStr.split(':');
+            return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
+        }
+        
+        // 字幕显示更新
+        video.addEventListener('timeupdate', () => {
+            const currentTime = video.currentTime;
+            const activeCue = findActiveCue(currentTime);
+            
+            if (activeCue) {
+                subtitleDisplay.textContent = activeCue.text;
+                subtitleDisplay.classList.add('active');
+            } else {
+                subtitleDisplay.classList.remove('active');
+            }
+        });
+        
+        // 二分查找优化
+        function findActiveCue(time) {
+            let left = 0;
+            let right = subtitles.length - 1;
+            
+            while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                if (subtitles[mid].start <= time && subtitles[mid].end >= time) {
+                    return subtitles[mid];
+                } else if (subtitles[mid].end < time) {
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+            return null;
+        }
+        
+        // 样式预设
+        function setupStylePresets() {
+            const presets = {
+                cinema: {
+                    fontSize: '26px',
+                    color: '#ffffff',
+                    textShadow: '0 2px 8px rgba(0,0,0,0.6)'
+                },
+                highlight: {
+                    fontSize: '24px',
+                    color: '#ffd700',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    padding: '15px 30px'
+                }
+            };
+        
+            window.setSubtitleStyle = (preset) => {
+                Object.assign(subtitleDisplay.style, presets[preset]);
+            };
+        }
+        
+        // 错误处理
+        function showSubtitleError() {
+            subtitleDisplay.textContent = '⚠ 字幕加载失败';
+            subtitleDisplay.style.color = '#ff4757';
+            subtitleDisplay.classList.add('active');
+        }
+        
+        // 时间格式化工具
+        function formatTime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            return h > 0 
+                ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+                : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+        
+        // 初始化播放器
+        initPlayer();
+    </script>
+
+    <!-- 控制栏相关JavaScript保持不变 -->
+    <!-- ...原有控制栏JavaScript代码... -->
+</body>
+</html>
