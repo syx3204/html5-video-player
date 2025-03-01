@@ -225,6 +225,122 @@
         .loading .control-btn {
             animation: pulse 1.5s infinite;
         }
+
+        .player-wrapper {
+        /* 保持原有样式 */
+            aspect-ratio: 16/9; /* 保持视频宽高比 */
+            max-width: 100vw;   /* 移动端满屏宽度 */
+            max-height: 100vh;  /* 防止超出屏幕高度 */
+        }
+
+        /* 视频元素适配 */
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* 保持视频比例 */
+        }
+
+        /* 增强响应式媒体查询 */
+        @media (max-width: 768px), (orientation: portrait) {
+            /* 竖屏模式适配 */
+            .player-wrapper {
+                border-radius: 0;
+                max-width: 100%;
+                aspect-ratio: unset;
+                height: auto;
+                min-height: 50vh;
+            }
+
+            #customSubtitle {
+                bottom: 80px;
+                font-size: 18px;
+                max-width: 90%;
+                padding: 8px 16px;
+                backdrop-filter: blur(2px);
+            }
+
+            .control-group {
+                gap: 10px;
+                height: 44px;
+            }
+
+            .control-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+
+            /* 移动端隐藏时间显示 */
+            .time-display {
+                display: none;
+            }
+
+            /* 优化进度条触摸区域 */
+            .progress-container {
+                height: 8px;
+                top: -6px;
+            }
+
+            #progressBar::after {
+                width: 16px;
+                height: 16px;
+                top: -6px;
+            }
+        }
+
+        @media (min-width: 1600px) {
+            /* 大屏幕优化 */
+            #customSubtitle {
+                font-size: 32px;
+                bottom: 120px;
+            }
+
+            .control-btn {
+                width: 44px;
+                height: 44px;
+                font-size: 20px;
+            }
+        }
+
+        /* 横屏移动设备优化 */
+        @media (orientation: landscape) and (max-width: 1024px) {
+            .player-wrapper {
+                max-height: 90vh;
+            }
+
+            #customSubtitle {
+                bottom: 70px;
+                font-size: 22px;
+            }
+        }
+
+        /* 超小屏幕手机适配 */
+        @media (max-width: 360px) {
+            #customSubtitle {
+                font-size: 16px;
+                bottom: 60px;
+                padding: 6px 12px;
+            }
+
+            .control-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+        }
+
+        /* 平板设备适配 */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            #customSubtitle {
+                font-size: 24px;
+                bottom: 90px;
+            }
+
+            .control-btn {
+                width: 42px;
+                height: 42px;
+            }
+        }
         </style>
 </head>
 <body>
@@ -528,6 +644,71 @@
             return h > 0 
                 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
                 : `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        function handleResize() {
+            const player = document.querySelector('.player-wrapper');
+            const isMobile = window.matchMedia("(max-width: 768px)").matches;
+            
+            // 移动端锁定竖屏视频高度
+            if(isMobile && window.innerHeight > window.innerWidth) {
+                player.style.height = `${window.innerHeight * 0.6}px`;
+            } else {
+                player.style.height = '';
+            }
+        }
+
+        // 添加窗口尺寸监听
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
+
+        // 初始化时调用一次
+        handleResize();
+
+        // 修改全屏函数适配移动端
+        function toggleFullscreen() {
+            const player = document.querySelector('.player-wrapper');
+            if(!document.fullscreenElement) {
+                if(player.requestFullscreen) {
+                    player.requestFullscreen();
+                } else if(player.webkitRequestFullscreen) { /* Safari */
+                    player.webkitRequestFullscreen();
+                } else if(player.mozRequestFullScreen) { /* Firefox */
+                    player.mozRequestFullScreen();
+                }
+            } else {
+                if(document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if(document.webkitExitFullscreen) { /* Safari */
+                    document.webkitExitFullscreen();
+                } else if(document.mozCancelFullScreen) { /* Firefox */
+                    document.mozCancelFullScreen();
+                }
+            }
+        }
+
+        // 优化移动端触摸处理
+        let touchStartTime = 0;
+        const TOUCH_DELAY = 100;
+
+        function handleTouchStart(e) {
+            isSeeking = true;
+            touchStartX = e.touches[0].clientX;
+            touchStartTime = Date.now();
+            video.pause();
+        }
+
+        function handleTouchMove(e) {
+            if(!isSeeking) return;
+            if(Date.now() - touchStartTime < TOUCH_DELAY) return;
+            
+            const deltaX = e.touches[0].clientX - touchStartX;
+            const seekPercent = deltaX / progressContainer.offsetWidth;
+            const seekTime = seekPercent * video.duration;
+            
+            video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seekTime));
+            touchStartX = e.touches[0].clientX;
+            touchStartTime = Date.now();
         }
         
         // 初始化播放器
