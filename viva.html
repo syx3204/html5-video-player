@@ -1,5 +1,233 @@
-<script>
-        // DOM 元素获取
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SRT Video Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #ff4757;
+            --control-height: 60px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+
+        .player-wrapper {
+            width: 100%;
+            max-width: 1200px;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+            position: relative;
+            aspect-ratio: 16/9;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #customSubtitle {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 80%;
+            min-width: 20%;
+            padding: 12px 24px;
+            color: #fff;
+            font-size: 26px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+            line-height: 1.4;
+            opacity: 0;
+            transition: all 0.3s ease;
+            white-space: pre-wrap;
+            text-align: center;
+        }
+
+        #customSubtitle.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-10px);
+        }
+
+        .controls-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            padding: 12px 20px;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(8px);
+        }
+
+        .player-wrapper:hover .controls-overlay {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            height: 48px;
+        }
+
+        .progress-container {
+            position: absolute;
+            top: -12px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+        }
+
+        #progressBar {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0;
+            transition: width 0.1s linear;
+            position: relative;
+        }
+
+        #progressBar::after {
+            content: '';
+            position: absolute;
+            right: -6px;
+            top: -4px;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .progress-container:hover #progressBar::after {
+            opacity: 1;
+        }
+
+        .control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .control-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: scale(1.1);
+        }
+
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+
+        .time-display {
+            color: rgba(255,255,255,0.9);
+            font-family: 'Roboto Mono', monospace;
+            font-size: 14px;
+            min-width: 120px;
+            letter-spacing: 0.5px;
+        }
+
+        #volumeSlider {
+            width: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.2);
+            transition: all 0.3s ease;
+            opacity: 0;
+        }
+
+        .volume-container:hover #volumeSlider {
+            width: 80px;
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .controls-overlay {
+                padding: 8px 12px;
+            }
+            
+            .control-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+            
+            .time-display {
+                font-size: 12px;
+                min-width: 100px;
+            }
+            
+            #volumeSlider {
+                display: none;
+            }
+
+            #customSubtitle {
+                bottom: 80px;
+                font-size: 18px;
+                padding: 8px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="player-wrapper">
+        <video id="videoElement">
+            <source src="https://m.ccw.site/creator-college/videos/724b116ffbe0a1e01c47c8c208a4321e.mp4" type="video/mp4">
+        </video>
+        <div id="customSubtitle"></div>
+        
+        <div class="controls-overlay">
+            <div class="progress-container">
+                <div id="progressBar"></div>
+            </div>
+            <div class="control-group">
+                <button class="control-btn" id="playBtn">▶</button>
+                <span class="time-display">
+                    <span id="currentTime">00:00</span> / 
+                    <span id="duration">00:00</span>
+                </span>
+                <div class="volume-container" style="display: flex; align-items: center; gap: 8px;">
+                    <button class="control-btn" id="volumeBtn">🔊</button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
+                </div>
+                <button class="control-btn" id="fullscreenBtn">⛶</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
         const video = document.getElementById('videoElement');
         const subtitleDisplay = document.getElementById('customSubtitle');
         const playBtn = document.getElementById('playBtn');
@@ -10,39 +238,37 @@
         const currentTime = document.getElementById('currentTime');
         const duration = document.getElementById('duration');
         const progressContainer = document.querySelector('.progress-container');
-        
         let subtitles = [];
-        
+
         // 初始化播放器
         function initPlayer() {
             loadSubtitle();
             setupControls();
             setupEventListeners();
-            setupStylePresets();
             video.addEventListener('loadedmetadata', () => {
                 duration.textContent = formatTime(video.duration);
             });
         }
 
-        // 加载SRT字幕
+        // SRT字幕处理
         async function loadSubtitle() {
             try {
                 const response = await fetch('https://m.ccw.site/creator-college/videos/2e13b6d138c45bf7f932dd51d9c11c51.srt');
                 const text = await response.text();
                 parseSRT(text);
             } catch (error) {
-                showSubtitleError();
+                subtitleDisplay.textContent = '⚠ 字幕加载失败';
+                subtitleDisplay.classList.add('active');
             }
         }
 
-        // 解析SRT格式
         function parseSRT(srtText) {
             subtitles = [];
-            const blocks = srtText.split(/\r?\n\s*\r?\n/); // 按空行分割字幕块
+            const blocks = srtText.split(/\n\s*\n/);
             
             blocks.forEach(block => {
-                const lines = block.split(/\r?\n/).filter(l => l.trim() !== '');
-                if (lines.length < 3) return; // 至少需要序号、时间轴和内容
+                const lines = block.split('\n').filter(l => l.trim() !== '');
+                if (lines.length < 3) return;
 
                 const timeLine = lines[1];
                 if (!timeLine.includes('-->')) return;
@@ -51,62 +277,119 @@
                 const text = lines.slice(2).join('\n').trim();
                 
                 subtitles.push({
-                    start: parseSRTTime(startStr),
-                    end: parseSRTTime(endStr),
+                    start: parseTime(startStr),
+                    end: parseTime(endStr),
                     text: cleanText(text)
                 });
             });
 
-            // 按开始时间排序
             subtitles.sort((a, b) => a.start - b.start);
         }
 
-        // 解析SRT时间格式（00:00:00,000）
-        function parseSRTTime(timeStr) {
-            const [timePart, msPart] = timeStr.split(',');
-            const [hours, minutes, seconds] = timePart.split(':').map(parseFloat);
-            return hours * 3600 + minutes * 60 + seconds + parseFloat(msPart) / 1000;
+        function parseTime(timeStr) {
+            const [hms, ms] = timeStr.replace(',', '.').split('.');
+            const [h, m, s] = hms.split(':');
+            return (+h * 3600) + (+m * 60) + (+s) + (+ms.padEnd(3,0))/1000;
         }
 
-        // 清理字幕文本（根据需要调整）
         function cleanText(text) {
             return text
-                .replace(/\s+/g, ' ')    // 合并多个空格
-                .replace(/^\s+|\s+$/g, '') // 去除首尾空格
-                .replace(/\b(X-?word-\w+)\b/gi, ''); // 移除特定标签
+                .replace(/\s+/g, ' ')
+                .replace(/\[.*?\]/g, '')
+                .trim();
         }
 
-        // 其余保持原有逻辑不变
-        function findActiveCue(time) {
-            let left = 0;
-            let right = subtitles.length - 1;
-            
-            while (left <= right) {
-                const mid = Math.floor((left + right) / 2);
-                if (subtitles[mid].start <= time && subtitles[mid].end >= time) {
-                    return subtitles[mid];
-                } else if (subtitles[mid].end < time) {
-                    left = mid + 1;
-                } else {
-                    right = mid - 1;
-                }
-            }
-            return null;
+        // 播放控制
+        function togglePlay() {
+            video.paused ? video.play() : video.pause();
+            playBtn.textContent = video.paused ? '▶' : '⏸';
         }
 
-        // 时间更新处理
-        video.addEventListener('timeupdate', () => {
-            const currentTime = video.currentTime;
-            const activeCue = findActiveCue(currentTime);
-            
-            if (activeCue) {
-                subtitleDisplay.textContent = activeCue.text;
-                subtitleDisplay.classList.add('active');
+        // 进度条控制
+        function updateProgress() {
+            const progress = (video.currentTime / video.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+            currentTime.textContent = formatTime(video.currentTime);
+        }
+
+        function seekVideo(e) {
+            const rect = progressContainer.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            video.currentTime = pos * video.duration;
+        }
+
+        // 时间格式化
+        function formatTime(seconds) {
+            const date = new Date(0);
+            date.setSeconds(seconds);
+            return date.toISOString().substr(11, 8).replace(/^00:/, '');
+        }
+
+        // 音量控制
+        function handleVolumeChange(e) {
+            video.volume = e.target.value;
+            volumeBtn.textContent = video.volume === 0 ? '🔇' : '🔊';
+        }
+
+        // 全屏控制
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.querySelector('.player-wrapper').requestFullscreen();
             } else {
-                subtitleDisplay.classList.remove('active');
+                document.exitFullscreen();
             }
-        });
+        }
 
-        // 其余函数保持不变...
+        // 事件监听
+        function setupEventListeners() {
+            // 基础控制
+            playBtn.addEventListener('click', togglePlay);
+            video.addEventListener('click', togglePlay);
+            video.addEventListener('timeupdate', updateProgress);
+            progressContainer.addEventListener('click', seekVideo);
+            
+            // 音量控制
+            volumeSlider.addEventListener('input', handleVolumeChange);
+            
+            // 全屏控制
+            fullscreenBtn.addEventListener('click', toggleFullscreen);
+            
+            // 键盘快捷键
+            document.addEventListener('keydown', (e) => {
+                switch(e.code) {
+                    case 'Space':
+                        e.preventDefault();
+                        togglePlay();
+                        break;
+                    case 'ArrowLeft':
+                        video.currentTime = Math.max(0, video.currentTime - 5);
+                        break;
+                    case 'ArrowRight':
+                        video.currentTime = Math.min(video.duration, video.currentTime + 5);
+                        break;
+                    case 'KeyM':
+                        video.muted = !video.muted;
+                        break;
+                }
+            });
+
+            // 字幕同步
+            video.addEventListener('timeupdate', () => {
+                const current = video.currentTime;
+                const cue = subtitles.find(s => current >= s.start && current <= s.end);
+                subtitleDisplay.textContent = cue?.text || '';
+                subtitleDisplay.classList.toggle('active', !!cue);
+            });
+        }
+
+        // 初始化控件
+        function setupControls() {
+            volumeSlider.value = video.volume;
+            playBtn.textContent = video.paused ? '▶' : '⏸';
+        }
+
+        // 启动播放器
         initPlayer();
-</script>
+    </script>
+</body>
+</html>
