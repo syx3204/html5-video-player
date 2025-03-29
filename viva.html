@@ -1,0 +1,112 @@
+<script>
+        // DOM 元素获取
+        const video = document.getElementById('videoElement');
+        const subtitleDisplay = document.getElementById('customSubtitle');
+        const playBtn = document.getElementById('playBtn');
+        const volumeBtn = document.getElementById('volumeBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const progressBar = document.getElementById('progressBar');
+        const currentTime = document.getElementById('currentTime');
+        const duration = document.getElementById('duration');
+        const progressContainer = document.querySelector('.progress-container');
+        
+        let subtitles = [];
+        
+        // 初始化播放器
+        function initPlayer() {
+            loadSubtitle();
+            setupControls();
+            setupEventListeners();
+            setupStylePresets();
+            video.addEventListener('loadedmetadata', () => {
+                duration.textContent = formatTime(video.duration);
+            });
+        }
+
+        // 加载SRT字幕
+        async function loadSubtitle() {
+            try {
+                const response = await fetch('https://m.ccw.site/creator-college/videos/2e13b6d138c45bf7f932dd51d9c11c51.srt');
+                const text = await response.text();
+                parseSRT(text);
+            } catch (error) {
+                showSubtitleError();
+            }
+        }
+
+        // 解析SRT格式
+        function parseSRT(srtText) {
+            subtitles = [];
+            const blocks = srtText.split(/\r?\n\s*\r?\n/); // 按空行分割字幕块
+            
+            blocks.forEach(block => {
+                const lines = block.split(/\r?\n/).filter(l => l.trim() !== '');
+                if (lines.length < 3) return; // 至少需要序号、时间轴和内容
+
+                const timeLine = lines[1];
+                if (!timeLine.includes('-->')) return;
+
+                const [startStr, endStr] = timeLine.split(' --> ');
+                const text = lines.slice(2).join('\n').trim();
+                
+                subtitles.push({
+                    start: parseSRTTime(startStr),
+                    end: parseSRTTime(endStr),
+                    text: cleanText(text)
+                });
+            });
+
+            // 按开始时间排序
+            subtitles.sort((a, b) => a.start - b.start);
+        }
+
+        // 解析SRT时间格式（00:00:00,000）
+        function parseSRTTime(timeStr) {
+            const [timePart, msPart] = timeStr.split(',');
+            const [hours, minutes, seconds] = timePart.split(':').map(parseFloat);
+            return hours * 3600 + minutes * 60 + seconds + parseFloat(msPart) / 1000;
+        }
+
+        // 清理字幕文本（根据需要调整）
+        function cleanText(text) {
+            return text
+                .replace(/\s+/g, ' ')    // 合并多个空格
+                .replace(/^\s+|\s+$/g, '') // 去除首尾空格
+                .replace(/\b(X-?word-\w+)\b/gi, ''); // 移除特定标签
+        }
+
+        // 其余保持原有逻辑不变
+        function findActiveCue(time) {
+            let left = 0;
+            let right = subtitles.length - 1;
+            
+            while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                if (subtitles[mid].start <= time && subtitles[mid].end >= time) {
+                    return subtitles[mid];
+                } else if (subtitles[mid].end < time) {
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            }
+            return null;
+        }
+
+        // 时间更新处理
+        video.addEventListener('timeupdate', () => {
+            const currentTime = video.currentTime;
+            const activeCue = findActiveCue(currentTime);
+            
+            if (activeCue) {
+                subtitleDisplay.textContent = activeCue.text;
+                subtitleDisplay.classList.add('active');
+            } else {
+                subtitleDisplay.classList.remove('active');
+            }
+        });
+
+        // 其余函数保持不变...
+        initPlayer();
+</script>
